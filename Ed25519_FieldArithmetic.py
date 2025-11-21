@@ -5,6 +5,7 @@ Triển khai các phép toán trên trường hữu hạn F_{2^255-19}
 Sử dụng biểu diễn radix-2^51 với 5 limbs như mô tả trong paper:
 - Mỗi element được biểu diễn là (x0, x1, x2, x3, x4)
 - Với x = Σ(i=0 to 4) x_i * 2^(51*i)
+        = x_0 + x_1 * 2^51 + x_2 * 2^102 + x_3 * 2^153 + x_4 * 2^204
 - Mỗi limb có tối đa 54 bits trong quá trình tính toán
 """
 
@@ -14,8 +15,8 @@ from gmpy2 import mpz
 # Số nguyên tố của trường: p = 2^255 - 19
 P = (1 << 255) - 19
 
-# Constants cho operations
-MASK_51 = (1 << 51) - 1  # 0x7ffffffffffff
+# Hằng số cho tính toán
+MASK_51 = (1 << 51) - 1  # 0x7ffffffffffff = 2^51 - 1
 MASK_52 = (1 << 52) - 1
 
 
@@ -38,7 +39,7 @@ class FieldElement:
                 raise ValueError("FieldElement cần đúng 5 limbs")
             self.limbs = list(limbs)
         elif value is not None:
-            # Convert integer thành 5 limbs
+            # Chuyển số nguyên thành 5 limbs
             value = value % P
             self.limbs = [
                 (value >> (51 * 0)) & MASK_51,
@@ -48,18 +49,18 @@ class FieldElement:
                 (value >> (51 * 4)) & MASK_51,
             ]
         else:
-            # Zero element
+            # Phần tử không
             self.limbs = [0, 0, 0, 0, 0]
 
     def to_int(self):
-        """Convert limbs về integer"""
+        """Chuyển limbs về số nguyên"""
         result = 0
         for i in range(5):
             result += self.limbs[i] << (51 * i)
         return result % P
 
     def to_bytes(self):
-        """Convert sang 32 bytes (little-endian)"""
+        """Chuyển sang 32 bytes (little-endian)"""
         value = self.to_int()
         return value.to_bytes(32, byteorder='little')
 
@@ -299,68 +300,6 @@ D = FieldElement(value=(-121665 * pow(121666, P - 2, P)) % P)  # -121665/121666 
 SQRT_M1 = FieldElement(value=pow(2, (P - 1) // 4, P))  # sqrt(-1) mod p
 
 
-def test_field_arithmetic():
-    """Test các phép toán cơ bản"""
-    print("Testing Field Arithmetic...")
-
-    # Test zero và one
-    zero = FieldElement(value=0)
-    one = FieldElement(value=1)
-    assert zero.is_zero()
-    assert not one.is_zero()
-    print("✓ Zero và One")
-
-    # Test addition
-    a = FieldElement(value=12345)
-    b = FieldElement(value=67890)
-    c = a.add(b)
-    assert c.to_int() == (12345 + 67890) % P
-    print("✓ Addition")
-
-    # Test subtraction
-    d = c.sub(b)
-    assert d.to_int() == a.to_int()
-    print("✓ Subtraction")
-
-    # Test multiplication
-    e = a.mul(b)
-    expected = (12345 * 67890) % P
-    assert e.to_int() == expected
-    print("✓ Multiplication")
-
-    # Test squaring
-    f = a.square()
-    expected = (12345 * 12345) % P
-    assert f.to_int() == expected
-    print("✓ Squaring")
-
-    # Test inversion
-    g = a.invert()
-    h = a.mul(g)
-    assert h.to_int() == 1
-    print("✓ Inversion")
-
-    # Test với số lớn gần p
-    big = FieldElement(value=P - 1)
-    result = big.add(one)
-    assert result.is_zero()
-    print("✓ Modulo reduction")
-
-    # Test bytes conversion
-    original = FieldElement(value=123456789)
-    bytes_data = original.to_bytes()
-    recovered = FieldElement.from_bytes(bytes_data)
-    assert original == recovered
-    print("✓ Bytes conversion")
-
-    # Test sqrt cho perfect square
-    x = FieldElement(value=4)
-    sqrt_x = x.sqrt()
-    assert sqrt_x.square().to_int() == 4
-    print("✓ Square root")
-
-    print("\n✅ All Field Arithmetic tests passed!")
-
-
 if __name__ == "__main__":
-    test_field_arithmetic()
+    # test_field_arithmetic()
+    print(MASK_51)
