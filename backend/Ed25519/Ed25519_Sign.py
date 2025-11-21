@@ -16,9 +16,9 @@ Features:
 """
 
 import hashlib
-from Ed25519_FieldArithmetic import FieldElement
-from Ed25519_CurveArithmetic import EdwardsPoint, BASE_POINT, L
-from Ed25519_KeyGen import Ed25519PrivateKey, Ed25519PublicKey
+
+from .Ed25519_CurveArithmetic import EdwardsPoint, BASE_POINT, L
+from .Ed25519_KeyGen import Ed25519PrivateKey
 
 
 class Ed25519Signature:
@@ -296,10 +296,6 @@ def sign_with_scalar_mul(message, private_key):
 
     return Ed25519Signature(R, S)
 
-
-
-
-
 def benchmark_signing():
     """Benchmark signing performance"""
     print("\n" + "="*60)
@@ -346,48 +342,16 @@ def benchmark_signing():
     print("="*60)
 
 
-def demo_signing():
-    """Demo signing"""
-    print("\n" + "="*60)
-    print("Ed25519 Signature Generation Demo")
-    print("="*60)
-
-    from Ed25519_KeyGen import generate_keypair
-
-    # Generate keypair
-    print("\n1. Generating keypair...")
-    private_key, public_key = generate_keypair()
-    print(f"Public key: {public_key.to_bytes().hex()}")
-
-    # Sign message
-    print("\n2. Signing message...")
-    message = b"Hello, Ed25519! This is a test message."
-    print(f"Message: {message.decode()}")
-
-    signature = sign(message, private_key)
-    sig_bytes = signature.to_bytes()
-
-    print(f"\nSignature (64 bytes):")
-    print(f"  R: {sig_bytes[:32].hex()}")
-    print(f"  S: {sig_bytes[32:].hex()}")
-
-    # Demonstrate determinism
-    print("\n3. Demonstrating deterministic signing...")
-    sig2 = sign(message, private_key)
-    print(f"Same message signed again:")
-    print(f"  Signatures match: {signature == sig2}")
-
-    # Different message
-    print("\n4. Signing different message...")
-    message2 = b"Different message"
-    sig3 = sign(message2, private_key)
-    print(f"Different message: {message2.decode()}")
-    print(f"  Signatures different: {signature != sig3}")
-
-    print("\n" + "="*60)
-
-
-if __name__ == "__main__":
-    # test_signing()
-    # benchmark_signing()
-    demo_signing()
+# if __name__ == "__main__":
+#     from Ed25519_KeyGen import generate_keypair
+#
+#     private_key, public_key = generate_keypair()
+#     print(f"Public key: {public_key.to_bytes().hex()}")
+#
+#     message = b"Hello, Ed25519! This is a test message."
+#     print(f"Message: {message.decode()}")
+#
+#     signature = sign(message, private_key)
+#     sig_bytes = signature.to_bytes()
+#     print(f"  R: {sig_bytes[:32].hex()}")
+#     print(f"  S: {sig_bytes[32:].hex()}")

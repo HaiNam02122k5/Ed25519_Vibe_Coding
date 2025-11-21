@@ -16,10 +16,10 @@ Batch Verification (Fast):
 
 import hashlib
 import secrets
-from Ed25519_FieldArithmetic import FieldElement
-from Ed25519_CurveArithmetic import EdwardsPoint, BASE_POINT
-from Ed25519_KeyGen import Ed25519PublicKey
-from Ed25519_Sign import Ed25519Signature
+
+from .Ed25519_CurveArithmetic import EdwardsPoint, BASE_POINT
+from .Ed25519_KeyGen import Ed25519PublicKey
+from .Ed25519_Sign import Ed25519Signature
 
 L = 2 ** 252 + 27742317777372353535851937790883648493  # Order của base point
 
@@ -369,51 +369,6 @@ def batch_verify(signatures, messages, public_keys):
 
     return verifier.verify_batch()
 
-def demo_verification():
-    """Demo verification"""
-    print("\n" + "="*60)
-    print("Ed25519 Signature Verification Demo")
-    print("="*60)
-
-    from Ed25519_KeyGen import generate_keypair
-    from Ed25519_Sign import sign
-
-    # Generate and sign
-    print("\n1. Generating keypair and signing...")
-    private_key, public_key = generate_keypair()
-    message = b"Important message to verify"
-    signature = sign(message, private_key)
-
-    print(f"Message: {message.decode()}")
-    print(f"Signature: {signature.to_bytes().hex()[:32]}...")
-
-    # Verify
-    print("\n2. Verifying signature...")
-    is_valid = verify(signature, message, public_key)
-    print(f"Verification result: {is_valid}")
-
-    # Test with wrong message
-    print("\n3. Testing with wrong message...")
-    wrong_msg = b"Tampered message"
-    is_valid_wrong = verify(signature, wrong_msg, public_key)
-    print(f"Wrong message: {wrong_msg.decode()}")
-    print(f"Verification result: {is_valid_wrong}")
-
-    # Batch verification demo
-    print("\n4. Batch verification demo (5 signatures)...")
-    n = 5
-    batch_keys = [generate_keypair() for _ in range(n)]
-    batch_msgs = [f"Batch message {i}".encode() for i in range(n)]
-    batch_sigs = [sign(batch_msgs[i], batch_keys[i][0]) for i in range(n)]
-    batch_pks = [batch_keys[i][1] for i in range(n)]
-
-    batch_result = batch_verify(batch_sigs, batch_msgs, batch_pks)
-    print(f"All {n} signatures valid: {batch_result}")
-
-    print("\n" + "="*60)
 
 
-if __name__ == "__main__":
-    # test_verification()
-    # benchmark_verification()
-    demo_verification()
+# if __name__ == "__main__":

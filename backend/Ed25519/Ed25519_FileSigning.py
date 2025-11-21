@@ -14,9 +14,9 @@ import os
 import hashlib
 import json
 from datetime import datetime
-from Ed25519_KeyGen import Ed25519PrivateKey, Ed25519PublicKey, generate_keypair
-from Ed25519_Sign import sign
-from Ed25519_Verify import verify
+from .Ed25519_KeyGen import Ed25519PrivateKey, Ed25519PublicKey, generate_keypair
+from .Ed25519_Sign import sign
+from .Ed25519_Verify import verify
 
 
 class FileSignature:
@@ -281,65 +281,6 @@ def sign_multiple_files(file_paths, private_key, output_dir=None, metadata=None)
     return signatures
 
 
-def demo_file_signing():
-    """Demo ký file"""
-    print("=" * 70)
-    print("Ed25519 File Signing Demo")
-    print("=" * 70)
-
-    # 1. Generate keypair
-    print("\n1. Generating keypair...")
-    private_key, public_key = generate_keypair()
-    print(f"Public key: {public_key.to_bytes().hex()[:32]}...")
-
-    # 2. Tạo test file
-    print("\n2. Creating test file...")
-    test_file = "test_document.txt"
-    with open(test_file, 'w') as f:
-        f.write("This is a confidential document.\n")
-        f.write("Signed with Ed25519.\n")
-        f.write("Do not modify!\n")
-    print(f"Created: {test_file}")
-
-    # 3. Sign file
-    print("\n3. Signing file...")
-    metadata = {
-        "author": "Alice",
-        "department": "Security Team",
-        "description": "Confidential document"
-    }
-
-    file_sig = sign_file(test_file, private_key, metadata=metadata)
-    print(f"Signature info:")
-    print(f"  Filename: {file_sig.filename}")
-    print(f"  Hash: {file_sig.file_hash.hex()[:32]}...")
-    print(f"  Timestamp: {file_sig.timestamp}")
-    print(f"  Metadata: {file_sig.metadata}")
-
-    # 4. Verify file (chưa thay đổi)
-    print("\n4. Verifying original file...")
-    result = verify_file(test_file)
-    print(f"Valid: {result['valid']}")
-    print(f"Message: {result['message']}")
-
-    # 5. Modify file và verify lại
-    print("\n5. Modifying file and verifying again...")
-    with open(test_file, 'a') as f:
-        f.write("TAMPERED CONTENT\n")
-
-    result = verify_file(test_file)
-    print(f"Valid: {result['valid']}")
-    print(f"Message: {result['message']}")
-
-    # 6. Cleanup
-    print("\n6. Cleaning up...")
-    if os.path.exists(test_file):
-        os.remove(test_file)
-    if os.path.exists(test_file + ".sig"):
-        os.remove(test_file + ".sig")
-    print("Test files removed.")
-
-    print("\n" + "=" * 70)
 
 
 def interactive_sign():
@@ -432,42 +373,23 @@ def interactive_verify():
             print(f"  Metadata: {info['metadata']}")
 
 
-if __name__ == "__main__":
-    import sys
-
-    # if len(sys.argv) > 1:
-    #     command = sys.argv[1].lower()
-    #
-    #     if command == "sign":
-    #         interactive_sign()
-    #     elif command == "verify":
-    #         interactive_verify()
-    #     elif command == "demo":
-    #         demo_file_signing()
-    #     else:
-    #         print("Usage:")
-    #         print("  python Ed25519_FileSigning.py sign    - Sign a file")
-    #         print("  python Ed25519_FileSigning.py verify  - Verify a file")
-    #         print("  python Ed25519_FileSigning.py demo    - Run demo")
-    # else:
-    #     demo_file_signing()
-
-    private_key, public_key = generate_keypair()
-    test_file = "test_1.pdf"
-
-    metadata = {
-        "author": "Le Phe Do",
-        "department": "UET-VNU",
-        "description": "Giang vien Toan va Mat ma hoc"
-    }
-
-    file_sig = sign_file(test_file, private_key, metadata=metadata)
-    print(f"Signature info:")
-    print(f"  Filename: {file_sig.filename}")
-    print(f"  Hash: {file_sig.file_hash.hex()[:32]}...")
-    print(f"  Timestamp: {file_sig.timestamp}")
-    print(f"  Metadata: {file_sig.metadata}")
-
-    result = verify_file(test_file)
-    print(f"Valid: {result['valid']}")
-    print(f"Message: {result['message']}")
+# if __name__ == "__main__":
+#     private_key, public_key = generate_keypair()
+#     test_file = "test_1.pdf"
+#
+#     metadata = {
+#         "author": "Le Phe Do",
+#         "department": "UET-VNU",
+#         "description": "Giang vien Toan va Mat ma hoc"
+#     }
+#
+#     file_sig = sign_file(test_file, private_key, metadata=metadata)
+#     print(f"Signature info:")
+#     print(f"  Filename: {file_sig.filename}")
+#     print(f"  Hash: {file_sig.file_hash.hex()[:32]}...")
+#     print(f"  Timestamp: {file_sig.timestamp}")
+#     print(f"  Metadata: {file_sig.metadata}")
+#
+#     result = verify_file(test_file)
+#     print(f"Valid: {result['valid']}")
+#     print(f"Message: {result['message']}")

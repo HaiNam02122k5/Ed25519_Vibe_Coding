@@ -8,7 +8,7 @@ Sử dụng Extended Coordinates (X:Y:Z:T) với XY = ZT
 - 9 field multiplications cho point addition (theo Hisil et al.)
 """
 
-from Ed25519_FieldArithmetic import FieldElement, P, D, ZERO, ONE, SQRT_M1
+from .Ed25519_FieldArithmetic import FieldElement, P, D, ZERO, ONE, SQRT_M1
 
 # Curve parameters
 # Twisted Edwards curve: -x^2 + y^2 = 1 + dx^2y^2

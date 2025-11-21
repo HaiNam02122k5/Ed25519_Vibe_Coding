@@ -17,15 +17,14 @@ Disadvantages:
 - Tăng kích thước file một chút
 """
 
-import os
-import json
 import hashlib
-import shutil
+import json
+import os
 from datetime import datetime
-from Ed25519_KeyGen import Ed25519PrivateKey, Ed25519PublicKey, generate_keypair
-from Ed25519_Sign import sign
-from Ed25519_Verify import verify
-from Ed25519_FileSigning import hash_file
+
+from .Ed25519_KeyGen import Ed25519PrivateKey, Ed25519PublicKey
+from .Ed25519_Sign import sign
+from .Ed25519_Verify import verify
 
 
 class EmbeddedSignatureFormat:
@@ -315,101 +314,6 @@ def extract_original_file(signed_file_path, output_path=None):
     return output_path
 
 
-def demo_embedded_signature():
-    """Demo embedded signature"""
-    print("=" * 70)
-    print("Embedded Signature Demo")
-    print("=" * 70)
-
-    from Ed25519_KeyGen import generate_keypair
-    import shutil
-
-    # 1. Generate keypair
-    print("\n1. Generating keypair...")
-    private_key, public_key = generate_keypair()
-    print(f"Public key: {public_key.to_bytes().hex()[:32]}...")
-
-    # 2. Create test file
-    print("\n2. Creating test file...")
-    test_file = "test_embedded.txt"
-    with open(test_file, 'w') as f:
-        f.write("This is the original content.\n")
-        f.write("It will have an embedded signature.\n")
-        f.write("The signature is appended at the end.\n")
-
-    original_size = os.path.getsize(test_file)
-    print(f"Created: {test_file} ({original_size} bytes)")
-
-    # Create backup for later verification
-    backup_file = test_file + ".backup"
-    shutil.copy(test_file, backup_file)
-
-    # 3. Embed signature
-    print("\n3. Embedding signature...")
-    metadata = {
-        "author": "Alice",
-        "purpose": "Test embedded signature"
-    }
-
-    signed_file = embed_signature(test_file, private_key, metadata=metadata)
-    signed_size = os.path.getsize(signed_file)
-
-    print(f"\n✓ Signature embedded successfully!")
-    print(f"File size: {original_size} → {signed_size} bytes (+{signed_size - original_size})")
-
-    # 4. Verify embedded signature
-    print("\n4. Verifying embedded signature...")
-    result = verify_embedded_signature(signed_file)
-
-    print(f"Valid: {result['valid']}")
-    print(f"Message: {result['message']}")
-    if result['signature_info']:
-        print(f"Signed by: {result['signature_info']['metadata']['author']}")
-        print(f"Signed at: {result['signature_info']['timestamp']}")
-
-    # 5. Extract original file
-    print("\n5. Extracting original file...")
-    original_extracted = extract_original_file(signed_file)
-
-    # Verify extracted file matches original
-    with open(backup_file, 'rb') as f:
-        original_backup = f.read()
-    with open(original_extracted, 'rb') as f:
-        extracted = f.read()
-
-    if original_backup == extracted:
-        print("✓ Extracted file matches original!")
-    else:
-        print("✗ Extracted file does NOT match original!")
-
-    # 6. Demonstrate tampering detection
-    print("\n6. Testing tampering detection...")
-    print("Modifying signed file content...")
-
-    with open(signed_file, 'rb') as f:
-        tampered = f.read()
-
-    # Modify content (insert text near beginning)
-    tampered = tampered[:50] + b"TAMPERED" + tampered[50:]
-
-    with open(signed_file, 'wb') as f:
-        f.write(tampered)
-
-    result = verify_embedded_signature(signed_file)
-    print(f"Valid: {result['valid']}")
-    print(f"Message: {result['message']}")
-
-    # 7. Cleanup
-    print("\n7. Cleaning up...")
-    files_to_remove = [test_file, backup_file, original_extracted]
-    for file in files_to_remove:
-        if os.path.exists(file):
-            os.remove(file)
-            print(f"Removed: {file}")
-    print("Test files removed.")
-
-    print("\n" + "=" * 70)
-
 def compare_detached_vs_embedded():
     """So sánh Detached vs Embedded signatures"""
     print("=" * 70)
@@ -474,66 +378,22 @@ RECOMMENDATIONS:
     print(comparison)
 
 
-if __name__ == "__main__":
-    import sys
-
-    # if len(sys.argv) > 1:
-    #     command = sys.argv[1].lower()
-    #
-    #     if command == "demo":
-    #         demo_embedded_signature()
-    #     elif command == "compare":
-    #         compare_detached_vs_embedded()
-    #     elif command == "embed":
-    #         if len(sys.argv) < 3:
-    #             print("Usage: python Ed25519_EmbeddedSignature.py embed <file_path>")
-    #         else:
-    #             from Ed25519_KeyGen import generate_keypair
-    #
-    #             file_path = sys.argv[2]
-    #
-    #             # Generate or load keypair
-    #             private_key, _ = generate_keypair()
-    #             embed_signature(file_path, private_key)
-    #     elif command == "verify":
-    #         if len(sys.argv) < 3:
-    #             print("Usage: python Ed25519_EmbeddedSignature.py verify <file_path>")
-    #         else:
-    #             file_path = sys.argv[2]
-    #             result = verify_embedded_signature(file_path)
-    #             print(f"\nValid: {result['valid']}")
-    #             print(f"Message: {result['message']}")
-    #     elif command == "extract":
-    #         if len(sys.argv) < 3:
-    #             print("Usage: python Ed25519_EmbeddedSignature.py extract <file_path>")
-    #         else:
-    #             file_path = sys.argv[2]
-    #             extract_original_file(file_path)
-    #     else:
-    #         print("Usage:")
-    #         print("  python Ed25519_EmbeddedSignature.py demo     - Run demo")
-    #         print("  python Ed25519_EmbeddedSignature.py compare  - Compare detached vs embedded")
-    #         print("  python Ed25519_EmbeddedSignature.py embed <file>   - Embed signature")
-    #         print("  python Ed25519_EmbeddedSignature.py verify <file>  - Verify signature")
-    #         print("  python Ed25519_EmbeddedSignature.py extract <file> - Extract original")
-    # else:
-    #     demo_embedded_signature()
-    #     print("\n")
-    #     compare_detached_vs_embedded()
-
-    private_key, public_key = generate_keypair()
-    test_file = "test_1.pdf"
-    backup_file = test_file + ".backup"
-    shutil.copy(test_file, backup_file)
-
-    metadata = {
-        "author": "Le Phe Do",
-        "purpose": "Nhóm bài tập lớn"
-    }
-
-    signed_file = embed_signature(test_file, private_key, metadata=metadata)
-
-    result = verify_embedded_signature(signed_file)
-
-    print(f"Valid: {result['valid']}")
-    print(f"Message: {result['message']}")
+# if __name__ == "__main__":
+#     import sys
+#
+#     private_key, public_key = generate_keypair()
+#     test_file = "test_1.pdf"
+#     backup_file = test_file + ".backup"
+#     shutil.copy(test_file, backup_file)
+#
+#     metadata = {
+#         "author": "Le Phe Do",
+#         "purpose": "Nhóm bài tập lớn"
+#     }
+#
+#     signed_file = embed_signature(test_file, private_key, metadata=metadata)
+#
+#     result = verify_embedded_signature(signed_file)
+#
+#     print(f"Valid: {result['valid']}")
+#     print(f"Message: {result['message']}")

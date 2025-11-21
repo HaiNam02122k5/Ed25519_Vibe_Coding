@@ -300,6 +300,6 @@ D = FieldElement(value=(-121665 * pow(121666, P - 2, P)) % P)  # -121665/121666 
 SQRT_M1 = FieldElement(value=pow(2, (P - 1) // 4, P))  # sqrt(-1) mod p
 
 
-if __name__ == "__main__":
-    # test_field_arithmetic()
-    print(MASK_51)
+# if __name__ == "__main__":
+#     # test_field_arithmetic()
+#     print(MASK_51)

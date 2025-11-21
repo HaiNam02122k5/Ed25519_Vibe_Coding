@@ -13,11 +13,10 @@ Private key: 32 bytes (seed)
 Public key: 32 bytes (encoded point)
 """
 
-import os
-import secrets
 import hashlib
-from Ed25519_FieldArithmetic import FieldElement
-from Ed25519_CurveArithmetic import EdwardsPoint, BASE_POINT, L
+import secrets
+
+from .Ed25519_CurveArithmetic import EdwardsPoint, BASE_POINT
 
 
 class Ed25519PrivateKey:
@@ -218,82 +217,21 @@ def derive_public_key(private_key):
     return private_key.get_public_key()
 
 
-def demo_key_generation():
-    """Demo sử dụng key generation"""
-    print("\n" + "=" * 60)
-    print("Ed25519 Key Generation Demo")
-    print("=" * 60)
-
-    # Generate new keypair
-    print("\n1. Generating new keypair...")
-    private_key, public_key = generate_keypair()
-
-    print(f"\nPrivate Key (seed):")
-    print(f"  Hex: {private_key.to_bytes().hex()}")
-    print(f"  Length: {len(private_key.to_bytes())} bytes")
-
-    print(f"\nScalar (clamped):")
-    print(f"  Hex: {private_key.scalar_bytes.hex()}")
-    print(f"  Integer: {private_key.scalar}")
-    print(f"  Bits: {private_key.scalar.bit_length()}")
-
-    print(f"\nPublic Key:")
-    print(f"  Hex: {public_key.to_bytes().hex()}")
-    print(f"  Length: {len(public_key.to_bytes())} bytes")
-
-    # Demonstrate deterministic derivation
-    print("\n2. Demonstrating deterministic derivation...")
-    seed = secrets.token_bytes(32)
-    print(f"Seed: {seed.hex()}")
-
-    pk1 = Ed25519PrivateKey(seed=seed)
-    pk2 = Ed25519PrivateKey(seed=seed)
-
-    pub1 = pk1.get_public_key()
-    pub2 = pk2.get_public_key()
-
-    print(f"Public Key 1: {pub1.to_bytes().hex()}")
-    print(f"Public Key 2: {pub2.to_bytes().hex()}")
-    print(f"Keys match: {pub1 == pub2}")
-
-    # Demonstrate serialization
-    print("\n3. Demonstrating serialization...")
-    private_key, public_key = generate_keypair()
-
-    # Save to bytes
-    private_bytes = private_key.to_bytes()
-    public_bytes = public_key.to_bytes()
-
-    print(f"Original public key: {public_bytes.hex()}")
-
-    # Load from bytes
-    loaded_private = Ed25519PrivateKey.from_bytes(private_bytes)
-    loaded_public = Ed25519PublicKey.from_bytes(public_bytes)
-
-    print(f"Loaded public key:   {loaded_public.to_bytes().hex()}")
-    print(f"Keys match: {public_key == loaded_public}")
-
-    print("\n" + "=" * 60)
-
-
-if __name__ == "__main__":
-    # test_key_generation()
-    demo_key_generation()
-
-    # # Generate new keypair
-    # private_key, public_key = generate_keypair()
-    #
-    # # Save keys
-    # private_bytes = private_key.to_bytes()  # 32 bytes
-    # public_bytes = public_key.to_bytes()  # 32 bytes
-    #
-    # # Load keys
-    # loaded_private = Ed25519PrivateKey.from_bytes(private_bytes)
-    # loaded_public = Ed25519PublicKey.from_bytes(public_bytes)
-    #
-    # # Derive public from private
-    # public_key = private_key.get_public_key()
-    #
-    # # Deterministic generation
-    # seed = b'\x00' * 32
-    # private_key = Ed25519PrivateKey(seed=seed)
+# if __name__ == "__main__":
+#     # Generate new keypair
+#     private_key, public_key = generate_keypair()
+#
+#     # Save keys
+#     private_bytes = private_key.to_bytes()  # 32 bytes
+#     public_bytes = public_key.to_bytes()  # 32 bytes
+#
+#     # Load keys
+#     loaded_private = Ed25519PrivateKey.from_bytes(private_bytes)
+#     loaded_public = Ed25519PublicKey.from_bytes(public_bytes)
+#
+#     # Derive public from private
+#     public_key = private_key.get_public_key()
+#
+#     # Deterministic generation
+#     seed = b'\x00' * 32
+#     private_key = Ed25519PrivateKey(seed=seed)
