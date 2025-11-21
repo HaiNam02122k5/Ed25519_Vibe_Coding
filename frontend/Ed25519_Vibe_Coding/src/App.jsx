@@ -82,6 +82,26 @@ const apiService = {
   }
 }
 
+const readKeypairFile = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target.result)
+        if (json.private_key) {
+          resolve(json.private_key)
+        } else {
+          reject(new Error('Invalid keypair file format'))
+        }
+      } catch (error) {
+        reject(new Error('Failed to parse keypair file'))
+      }
+    }
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.readAsText(file)
+  })
+}
+
 // ============== Main App Component ==============
 
 function App() {
@@ -346,11 +366,40 @@ function SignMessageForm({ onSuccess, onError }) {
 
       {!generateNew && (
         <div className="form-group">
-          <label>Private Key (hex)</label>
+          <label>Private Key</label>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => document.getElementById('keypair-upload-msg').click()}
+              style={{ flex: 1 }}
+            >
+              <Upload size={18} />
+              Upload Keypair File
+            </button>
+            <input
+              id="keypair-upload-msg"
+              type="file"
+              accept=".json"
+              style={{ display: 'none' }}
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  try {
+                    const key = await readKeypairFile(file)
+                    setPrivateKey(key)
+                    onSuccess('Keypair file loaded!')
+                  } catch (error) {
+                    onError(error.message)
+                  }
+                }
+              }}
+            />
+          </div>
           <textarea
             value={privateKey}
             onChange={(e) => setPrivateKey(e.target.value)}
-            placeholder="Paste your private key..."
+            placeholder="Paste private key or upload keypair file..."
             rows={3}
           />
         </div>
@@ -446,37 +495,46 @@ function VerifyMessageForm({ onSuccess, onError }) {
 }
 
 function FileTab({ onSuccess, onError }) {
-  const [activeMode, setActiveMode] = useState('sign') // 'sign' or 'verify'
+  const [activeMode, setActiveMode] = useState('detached') // 'detached', 'embedded', 'verify'
 
   return (
     <div className="tab-content">
-      <div className="mode-toggle">
+      <div className="mode-toggle" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0' }}>
         <button
-          className={`mode-btn ${activeMode === 'sign' ? 'active' : ''}`}
-          onClick={() => setActiveMode('sign')}
+          className={`mode-btn ${activeMode === 'detached' ? 'active' : ''}`}
+          onClick={() => setActiveMode('detached')}
         >
-          Sign File
+          Sign (Detached)
+        </button>
+        <button
+          className={`mode-btn ${activeMode === 'embedded' ? 'active' : ''}`}
+          onClick={() => setActiveMode('embedded')}
+        >
+          Sign (Embedded PDF)
         </button>
         <button
           className={`mode-btn ${activeMode === 'verify' ? 'active' : ''}`}
           onClick={() => setActiveMode('verify')}
         >
-          Verify File
+          Verify
         </button>
       </div>
 
-      {activeMode === 'sign' ? (
-        <SignFileForm onSuccess={onSuccess} onError={onError} />
-      ) : (
+      {activeMode === 'detached' && (
+        <SignFileDetachedForm onSuccess={onSuccess} onError={onError} />
+      )}
+      {activeMode === 'embedded' && (
+        <SignFileEmbeddedForm onSuccess={onSuccess} onError={onError} />
+      )}
+      {activeMode === 'verify' && (
         <VerifyFileForm onSuccess={onSuccess} onError={onError} />
       )}
     </div>
   )
 }
 
-function SignFileForm({ onSuccess, onError }) {
+function SignFileDetachedForm({ onSuccess, onError }) {
   const [file, setFile] = useState(null)
-  const [signType, setSignType] = useState('detached') // 'detached' or 'embedded'
   const [privateKey, setPrivateKey] = useState('')
   const [generateNew, setGenerateNew] = useState(true)
   const [author, setAuthor] = useState('')
@@ -488,28 +546,17 @@ function SignFileForm({ onSuccess, onError }) {
       return
     }
 
-    if (signType === 'embedded' && !file.name.toLowerCase().endsWith('.pdf')) {
-      onError('Embedded signature only works with PDF files')
-      return
-    }
-
     try {
       setLoading(true)
-      let response
-
-      if (signType === 'embedded') {
-        response = await apiService.signEmbedded(file, privateKey || null, generateNew, author)
-      } else {
-        response = await apiService.signFile(file, privateKey || null, generateNew, author)
-      }
+      const response = await apiService.signFile(file, privateKey || null, generateNew, author)
 
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const a = document.createElement('a')
       a.href = url
-      a.download = signType === 'embedded' ? file.name.replace('.pdf', '_signed.pdf') : `${file.name}.sig`
+      a.download = `${file.name}.sig`
       a.click()
 
-      onSuccess(`File signed and downloaded! ${response.headers['x-private-key'] ? '(New keypair created - check your downloads)' : ''}`)
+      onSuccess(`Signature file downloaded!`)
 
       if (response.headers['x-private-key']) {
         promptSavePrivateKey(response.headers['x-private-key'], onSuccess)
@@ -523,7 +570,8 @@ function SignFileForm({ onSuccess, onError }) {
 
   return (
     <div className="card">
-      <h2>Sign File</h2>
+      <h2>Sign File (Detached Signature)</h2>
+      <p className="description">Create a separate .sig file for any file type</p>
 
       <div className="form-group">
         <label>Select File</label>
@@ -533,28 +581,6 @@ function SignFileForm({ onSuccess, onError }) {
           className="file-input"
         />
         {file && <p className="file-info">📄 {file.name}</p>}
-      </div>
-
-      <div className="form-group">
-        <label>Signature Type</label>
-        <div className="radio-group">
-          <label className="radio">
-            <input
-              type="radio"
-              checked={signType === 'detached'}
-              onChange={() => setSignType('detached')}
-            />
-            Detached (separate .sig file)
-          </label>
-          <label className="radio">
-            <input
-              type="radio"
-              checked={signType === 'embedded'}
-              onChange={() => setSignType('embedded')}
-            />
-            Embedded (in PDF only)
-          </label>
-        </div>
       </div>
 
       <div className="form-group">
@@ -570,11 +596,40 @@ function SignFileForm({ onSuccess, onError }) {
 
       {!generateNew && (
         <div className="form-group">
-          <label>Private Key (hex)</label>
+          <label>Private Key</label>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => document.getElementById('keypair-upload-detached').click()}
+              style={{ flex: 1 }}
+            >
+              <Upload size={18} />
+              Upload Keypair File
+            </button>
+            <input
+              id="keypair-upload-detached"
+              type="file"
+              accept=".json"
+              style={{ display: 'none' }}
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  try {
+                    const key = await readKeypairFile(file)
+                    setPrivateKey(key)
+                    onSuccess('Keypair file loaded!')
+                  } catch (error) {
+                    onError(error.message)
+                  }
+                }
+              }}
+            />
+          </div>
           <textarea
             value={privateKey}
             onChange={(e) => setPrivateKey(e.target.value)}
-            placeholder="Paste your private key..."
+            placeholder="Paste private key or upload keypair file..."
             rows={2}
           />
         </div>
@@ -598,20 +653,142 @@ function SignFileForm({ onSuccess, onError }) {
   )
 }
 
+function SignFileEmbeddedForm({ onSuccess, onError }) {
+  const [file, setFile] = useState(null)
+  const [privateKey, setPrivateKey] = useState('')
+  const [generateNew, setGenerateNew] = useState(true)
+  const [author, setAuthor] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSign = async () => {
+    if (!file) {
+      onError('Please select a PDF file')
+      return
+    }
+
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      onError('Only PDF files are supported for embedded signatures')
+      return
+    }
+
+    try {
+      setLoading(true)
+      const response = await apiService.signEmbedded(file, privateKey || null, generateNew, author)
+
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.name.replace('.pdf', '_signed.pdf')
+      a.click()
+
+      onSuccess('Signed PDF downloaded!')
+
+      if (response.headers['x-private-key']) {
+        promptSavePrivateKey(response.headers['x-private-key'], onSuccess)
+      }
+    } catch (error) {
+      onError(error.response?.data?.message || 'Error signing PDF')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Sign PDF (Embedded Signature)</h2>
+      <p className="description">Embed signature directly into PDF file</p>
+
+      <div className="form-group">
+        <label>Select PDF File</label>
+        <input
+          type="file"
+          accept=".pdf"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          className="file-input"
+        />
+        {file && <p className="file-info">📄 {file.name}</p>}
+      </div>
+
+      <div className="form-group">
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={generateNew}
+            onChange={(e) => setGenerateNew(e.target.checked)}
+          />
+          Generate new keypair
+        </label>
+      </div>
+
+      {!generateNew && (
+        <div className="form-group">
+          <label>Private Key</label>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => document.getElementById('keypair-upload-embedded').click()}
+              style={{ flex: 1 }}
+            >
+              <Upload size={18} />
+              Upload Keypair File
+            </button>
+            <input
+              id="keypair-upload-embedded"
+              type="file"
+              accept=".json"
+              style={{ display: 'none' }}
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  try {
+                    const key = await readKeypairFile(file)
+                    setPrivateKey(key)
+                    onSuccess('Keypair file loaded!')
+                  } catch (error) {
+                    onError(error.message)
+                  }
+                }
+              }}
+            />
+          </div>
+          <textarea
+            value={privateKey}
+            onChange={(e) => setPrivateKey(e.target.value)}
+            placeholder="Paste private key or upload keypair file..."
+            rows={2}
+          />
+        </div>
+      )}
+
+      <div className="form-group">
+        <label>Author (optional)</label>
+        <input
+          type="text"
+          value={author}
+          onChange={(e) => setAuthor(e.target.value)}
+          placeholder="Your name"
+        />
+      </div>
+
+      <button className="btn btn-primary" onClick={handleSign} disabled={loading || !file}>
+        {loading ? <Loader className="spinner" /> : <Zap size={18} />}
+        Sign PDF
+      </button>
+    </div>
+  )
+}
+
 function VerifyFileForm({ onSuccess, onError }) {
+  const [verifyType, setVerifyType] = useState('detached') // 'detached' or 'embedded'
   const [file, setFile] = useState(null)
   const [signatureFile, setSignatureFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
 
-  const handleVerify = async () => {
-    if (!file) {
-      onError('Please select file to verify')
-      return
-    }
-
-    if (!signatureFile) {
-      onError('Please select signature file')
+  const handleVerifyDetached = async () => {
+    if (!file || !signatureFile) {
+      onError('Please select both file and signature')
       return
     }
 
@@ -634,38 +811,111 @@ function VerifyFileForm({ onSuccess, onError }) {
     }
   }
 
+  const handleVerifyEmbedded = async () => {
+    if (!file) {
+      onError('Please select a signed PDF file')
+      return
+    }
+
+    try {
+      setLoading(true)
+      const data = await apiService.verifyEmbedded(file)
+      setResult(data)
+      onSuccess(data.message)
+    } catch (error) {
+      onError(error.response?.data?.message || 'Error verifying embedded signature')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="card">
-      <h2>Verify File</h2>
+      <h2>Verify File Signature</h2>
 
       <div className="form-group">
-        <label>Original File</label>
-        <input
-          type="file"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-          className="file-input"
-        />
-        {file && <p className="file-info">📄 {file.name}</p>}
+        <label>Signature Type</label>
+        <div className="radio-group">
+          <label className="radio">
+            <input
+              type="radio"
+              checked={verifyType === 'detached'}
+              onChange={() => {
+                setVerifyType('detached')
+                setResult(null)
+              }}
+            />
+            Detached (.sig file)
+          </label>
+          <label className="radio">
+            <input
+              type="radio"
+              checked={verifyType === 'embedded'}
+              onChange={() => {
+                setVerifyType('embedded')
+                setResult(null)
+              }}
+            />
+            Embedded (signed PDF)
+          </label>
+        </div>
       </div>
 
-      <div className="form-group">
-        <label>Signature File (.sig)</label>
-        <input
-          type="file"
-          onChange={(e) => setSignatureFile(e.target.files?.[0] || null)}
-          className="file-input"
-        />
-        {signatureFile && <p className="file-info">📄 {signatureFile.name}</p>}
-      </div>
+      {verifyType === 'detached' ? (
+        <>
+          <div className="form-group">
+            <label>Original File</label>
+            <input
+              type="file"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              className="file-input"
+            />
+            {file && <p className="file-info">📄 {file.name}</p>}
+          </div>
 
-      <button
-        className="btn btn-primary"
-        onClick={handleVerify}
-        disabled={loading || !file || !signatureFile}
-      >
-        {loading ? <Loader className="spinner" /> : <CheckCircle size={18} />}
-        Verify File
-      </button>
+          <div className="form-group">
+            <label>Signature File (.sig)</label>
+            <input
+              type="file"
+              accept=".sig"
+              onChange={(e) => setSignatureFile(e.target.files?.[0] || null)}
+              className="file-input"
+            />
+            {signatureFile && <p className="file-info">📄 {signatureFile.name}</p>}
+          </div>
+
+          <button
+            className="btn btn-primary"
+            onClick={handleVerifyDetached}
+            disabled={loading || !file || !signatureFile}
+          >
+            {loading ? <Loader className="spinner" /> : <CheckCircle size={18} />}
+            Verify Signature
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="form-group">
+            <label>Signed PDF File</label>
+            <input
+              type="file"
+              accept=".pdf"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              className="file-input"
+            />
+            {file && <p className="file-info">📄 {file.name}</p>}
+          </div>
+
+          <button
+            className="btn btn-primary"
+            onClick={handleVerifyEmbedded}
+            disabled={loading || !file}
+          >
+            {loading ? <Loader className="spinner" /> : <CheckCircle size={18} />}
+            Verify Embedded Signature
+          </button>
+        </>
+      )}
 
       {result && (
         <div className={`result-box ${result.valid ? 'success' : 'error'}`}>
@@ -674,6 +924,16 @@ function VerifyFileForm({ onSuccess, onError }) {
           {result.file_hash && (
             <p>
               <strong>Hash:</strong> {result.file_hash.substring(0, 32)}...
+            </p>
+          )}
+          {result.signer && (
+            <p>
+              <strong>Signer:</strong> {result.signer}
+            </p>
+          )}
+          {result.timestamp && (
+            <p>
+              <strong>Signed:</strong> {new Date(result.timestamp).toLocaleString()}
             </p>
           )}
         </div>
