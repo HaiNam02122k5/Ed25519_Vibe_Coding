@@ -369,10 +369,6 @@ def batch_verify(signatures, messages, public_keys):
 
     return verifier.verify_batch()
 
-
-
-#
-#
 def demo_verification():
     """Demo verification"""
     print("\n" + "="*60)
