@@ -435,19 +435,39 @@ def interactive_verify():
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) > 1:
-        command = sys.argv[1].lower()
+    # if len(sys.argv) > 1:
+    #     command = sys.argv[1].lower()
+    #
+    #     if command == "sign":
+    #         interactive_sign()
+    #     elif command == "verify":
+    #         interactive_verify()
+    #     elif command == "demo":
+    #         demo_file_signing()
+    #     else:
+    #         print("Usage:")
+    #         print("  python Ed25519_FileSigning.py sign    - Sign a file")
+    #         print("  python Ed25519_FileSigning.py verify  - Verify a file")
+    #         print("  python Ed25519_FileSigning.py demo    - Run demo")
+    # else:
+    #     demo_file_signing()
 
-        if command == "sign":
-            interactive_sign()
-        elif command == "verify":
-            interactive_verify()
-        elif command == "demo":
-            demo_file_signing()
-        else:
-            print("Usage:")
-            print("  python Ed25519_FileSigning.py sign    - Sign a file")
-            print("  python Ed25519_FileSigning.py verify  - Verify a file")
-            print("  python Ed25519_FileSigning.py demo    - Run demo")
-    else:
-        demo_file_signing()
+    private_key, public_key = generate_keypair()
+    test_file = "test_1.pdf"
+
+    metadata = {
+        "author": "Le Phe Do",
+        "department": "UET-VNU",
+        "description": "Giang vien Toan va Mat ma hoc"
+    }
+
+    file_sig = sign_file(test_file, private_key, metadata=metadata)
+    print(f"Signature info:")
+    print(f"  Filename: {file_sig.filename}")
+    print(f"  Hash: {file_sig.file_hash.hex()[:32]}...")
+    print(f"  Timestamp: {file_sig.timestamp}")
+    print(f"  Metadata: {file_sig.metadata}")
+
+    result = verify_file(test_file)
+    print(f"Valid: {result['valid']}")
+    print(f"Message: {result['message']}")
