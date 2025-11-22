@@ -265,13 +265,15 @@ def verify_embedded_signature(file_path, public_key=None):
             "valid": True,
             "message": "Embedded signature hợp lệ! Content chưa bị thay đổi.",
             "signature_info": sig_data,
-            "original_size": len(original_content)
+            "original_size": len(original_content),
+            "metadata": sig_data.get('metadata', {})
         }
     else:
         return {
             "valid": False,
             "message": "Signature không hợp lệ!",
-            "signature_info": sig_data
+            "signature_info": sig_data,
+            "metadata": sig_data.get('metadata', {})
         }
 
 

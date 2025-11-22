@@ -240,13 +240,15 @@ def verify_file(file_path, signature_path=None, public_key=None):
         return {
             "valid": True,
             "message": "Signature hợp lệ! File chưa bị thay đổi.",
-            "signature_info": file_sig.to_dict()
+            "signature_info": file_sig.to_dict(),
+            "metadata": file_sig.metadata
         }
     else:
         return {
             "valid": False,
             "message": "Signature không hợp lệ!",
-            "signature_info": file_sig.to_dict()
+            "signature_info": file_sig.to_dict(),
+            "metadata": file_sig.metadata
         }
 
 

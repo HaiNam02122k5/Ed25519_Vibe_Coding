@@ -24,11 +24,12 @@ const apiService = {
     return response.data
   },
 
-  signMessage: async (message, privateKey = null, generate = false) => {
+  signMessage: async (message, privateKey = null, generate = false, metadata = {}) => {
     const response = await axios.post(`${API_BASE}/sign/message`, {
       message,
       private_key: privateKey,
-      generate
+      generate,
+      metadata
     })
     return response.data
   },
@@ -57,12 +58,28 @@ const apiService = {
     return response
   },
 
-  signEmbedded: async (file, privateKey = null, generate = false, author = '') => {
+  signEmbedded: async (file, privateKey = null, generate = false, metadata = {}) => {
     const formData = new FormData()
     formData.append('file', file)
     if (privateKey) formData.append('private_key', privateKey)
     if (generate) formData.append('generate', 'true')
-    if (author) formData.append('author', author)
+
+    // Thêm tất cả metadata vào formData
+    Object.entries(metadata).forEach(([key, value]) => {
+      if (value) {
+        formData.append(key, value)
+      }
+    })
+
+    // Thêm custom fields riêng
+    if (metadata.customFields && Array.isArray(metadata.customFields)) {
+      metadata.customFields.forEach((field, index) => {
+        if (field.key && field.value) {
+          formData.append(`custom_field_${index}_key`, field.key)
+          formData.append(`custom_field_${index}_value`, field.value)
+        }
+      })
+    }
 
     const response = await axios.post(`${API_BASE}/sign/embedded`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -115,6 +132,7 @@ const downloadSignatureResult = (signatureData, message, onSuccess) => {
     public_key: signatureData.public_key,
     message_hash: signatureData.message_hash,
     timestamp: signatureData.timestamp,
+    metadata: signatureData.metadata || {},
     algorithm: "Ed25519",
     version: "1.0"
   }, null, 2)
@@ -343,6 +361,10 @@ function SignMessageForm({ onSuccess, onError }) {
   const [signature, setSignature] = useState(null)
   const [showDownloadOption, setShowDownloadOption] = useState(false) // MỚI
 
+  const [signerName, setSignerName] = useState('')
+  const [signerEmail, setSignerEmail] = useState('')
+  const [customFields, setCustomFields] = useState([])
+
   const handleSign = async () => {
     if (!message.trim()) {
       onError('Please enter a message')
@@ -351,7 +373,19 @@ function SignMessageForm({ onSuccess, onError }) {
 
     try {
       setLoading(true)
-      const data = await apiService.signMessage(message, privateKey || null, generateNew)
+
+      const metadata = {}
+      if (signerName) metadata.signer_name = signerName
+      if (signerEmail) metadata.signer_email = signerEmail
+
+      // Thêm custom fields
+      customFields.forEach(field => {
+        if (field.key && field.value) {
+          metadata[field.key] = field.value
+        }
+      })
+
+      const data = await apiService.signMessage(message, privateKey || null, generateNew, metadata)
       setSignature(data)
       onSuccess('Message signed successfully!')
 
@@ -383,6 +417,23 @@ function SignMessageForm({ onSuccess, onError }) {
     setShowDownloadOption(false)
   }
 
+  // MỚI: Thêm custom field
+  const addCustomField = () => {
+    setCustomFields([...customFields, { key: '', value: '' }])
+  }
+
+  // MỚI: Xóa custom field
+  const removeCustomField = (index) => {
+    setCustomFields(customFields.filter((_, i) => i !== index))
+  }
+
+  // MỚI: Cập nhật custom field
+  const updateCustomField = (index, field, value) => {
+    const updated = [...customFields]
+    updated[index][field] = value
+    setCustomFields(updated)
+  }
+
   return (
     <div className="card">
       <h2>Sign Message</h2>
@@ -395,6 +446,78 @@ function SignMessageForm({ onSuccess, onError }) {
           placeholder="Enter your message..."
           rows={4}
         />
+      </div>
+
+      {/* MỚI: Signer Information Section */}
+      <div className="metadata-section">
+        <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: '#555' }}>
+          Signer Information (Optional)
+        </h3>
+
+        <div className="form-group">
+          <label>Your Name</label>
+          <input
+            type="text"
+            value={signerName}
+            onChange={(e) => setSignerName(e.target.value)}
+            placeholder="John Doe"
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Your Email</label>
+          <input
+            type="email"
+            value={signerEmail}
+            onChange={(e) => setSignerEmail(e.target.value)}
+            placeholder="john@example.com"
+          />
+        </div>
+
+        {/* MỚI: Custom Metadata Fields */}
+        <div className="custom-fields-section">
+          <div className="custom-fields-header">
+            <label>Custom Fields</label>
+            <button
+              type="button"
+              className="btn-add-field"
+              onClick={addCustomField}
+            >
+              + Add Field
+            </button>
+          </div>
+
+          {customFields.length > 0 && (
+            <div className="custom-fields-list">
+              {customFields.map((field, index) => (
+                <div key={index} className="custom-field-row">
+                  <input
+                    type="text"
+                    value={field.key}
+                    onChange={(e) => updateCustomField(index, 'key', e.target.value)}
+                    placeholder="Field name (e.g., department)"
+                    className="custom-field-input"
+                  />
+                  <input
+                    type="text"
+                    value={field.value}
+                    onChange={(e) => updateCustomField(index, 'value', e.target.value)}
+                    placeholder="Value"
+                    className="custom-field-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeCustomField(index)}
+                    className="btn-remove-field"
+                    title="Remove field"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="form-group">
@@ -480,6 +603,18 @@ function SignMessageForm({ onSuccess, onError }) {
       {signature && (
         <div className="result-box">
           <h3>Signature Result</h3>
+
+          {signature.metadata && Object.keys(signature.metadata).length > 0 && (
+            <div className="metadata-display">
+              <h4>Signer Information:</h4>
+              {Object.entries(signature.metadata).map(([key, value]) => (
+                <p key={key}>
+                  <strong>{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</strong> {value}
+                </p>
+              ))}
+            </div>
+          )}
+
           <ResultDisplay
             data={signature}
             onDownload={() => downloadSignatureResult(signature, message, onSuccess)}
@@ -496,6 +631,7 @@ function VerifyMessageForm({ onSuccess, onError }) {
   const [publicKey, setPublicKey] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
+  const [metadata, setMetadata] = useState(null)
 
   // MỚI: Hàm đọc file chữ ký
   const readSignatureFile = (file) => {
@@ -514,7 +650,8 @@ function VerifyMessageForm({ onSuccess, onError }) {
             signature: json.signature,
             publicKey: json.public_key,
             message: json.message || '', // MỚI: Lấy message nếu có
-            messageHash: json.message_hash || ''
+            messageHash: json.message_hash || '',
+            metadata: json.metadata || {}
           })
         } catch (error) {
           reject(new Error('Failed to parse signature file'))
@@ -585,6 +722,9 @@ function VerifyMessageForm({ onSuccess, onError }) {
                   if (data.message) {
                     setMessage(data.message) // MỚI: Auto-fill message
                   }
+                  if (data.metadata) {
+                    setMetadata(data.metadata)  // MỚI: Lưu metadata
+                  }
                   onSuccess('Signature file loaded!' + (data.message ? ' Message auto-filled.' : ''))
                 } catch (error) {
                   onError(error.message)
@@ -611,6 +751,17 @@ function VerifyMessageForm({ onSuccess, onError }) {
         />
       </div>
 
+      {metadata && Object.keys(metadata).length > 0 && (
+        <div className="metadata-display" style={{ marginBottom: '1rem' }}>
+          <h4>Signer Information from File:</h4>
+          {Object.entries(metadata).map(([key, value]) => (
+            <p key={key}>
+              <strong>{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</strong> {value}
+            </p>
+          ))}
+        </div>
+      )}
+
       <button className="btn btn-primary" onClick={handleVerify} disabled={loading}>
         {loading ? <Loader className="spinner" /> : <CheckCircle size={18} />}
         Verify Message
@@ -620,6 +771,17 @@ function VerifyMessageForm({ onSuccess, onError }) {
         <div className={`result-box ${result.valid ? 'success' : 'error'}`}>
           <h3>{result.valid ? '✓ Valid' : '✗ Invalid'}</h3>
           <p>{result.message}</p>
+
+          {metadata && Object.keys(metadata).length > 0 && (
+            <div className="metadata-display" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+              <h4 style={{ marginBottom: '0.75rem' }}>Signer Information:</h4>
+              {Object.entries(metadata).map(([key, value]) => (
+                <p key={key} style={{ marginBottom: '0.5rem' }}>
+                  <strong>{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</strong> {value}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -670,7 +832,10 @@ function SignFileDetachedForm({ onSuccess, onError }) {
   const [privateKey, setPrivateKey] = useState('')
   const [generateNew, setGenerateNew] = useState(true)
   const [author, setAuthor] = useState('')
+  const [signerEmail, setSignerEmail] = useState('')
+  const [customFields, setCustomFields] = useState([])
   const [loading, setLoading] = useState(false)
+  const [showDownloadOption, setShowDownloadOption] = useState(false)
 
   const handleSign = async () => {
     if (!file) {
@@ -680,6 +845,34 @@ function SignFileDetachedForm({ onSuccess, onError }) {
 
     try {
       setLoading(true)
+
+      const metadata = {}
+      if (author) metadata.author = author
+      if (signerEmail) metadata.signer_email = signerEmail
+
+      // Thêm custom fields
+      customFields.forEach(field => {
+        if (field.key && field.value) {
+          metadata[field.key] = field.value
+        }
+      })
+
+      // Thêm metadata vào form data
+      const formData = new FormData()
+      formData.append('file', file)
+      if (privateKey) formData.append('private_key', privateKey)
+      if (generateNew) formData.append('generate', 'true')
+      if (author) formData.append('author', author)
+      if (signerEmail) formData.append('signer_email', signerEmail)
+
+      // Thêm custom fields vào form data
+      customFields.forEach((field, index) => {
+        if (field.key && field.value) {
+          formData.append(`custom_field_${index}_key`, field.key)
+          formData.append(`custom_field_${index}_value`, field.value)
+        }
+      })
+
       const response = await apiService.signFile(file, privateKey || null, generateNew, author)
 
       const url = window.URL.createObjectURL(new Blob([response.data]))
@@ -698,6 +891,23 @@ function SignFileDetachedForm({ onSuccess, onError }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Thêm custom field
+  const addCustomField = () => {
+    setCustomFields([...customFields, { key: '', value: '' }])
+  }
+
+  // Xóa custom field
+  const removeCustomField = (index) => {
+    setCustomFields(customFields.filter((_, i) => i !== index))
+  }
+
+  // Cập nhật custom field
+  const updateCustomField = (index, field, value) => {
+    const updated = [...customFields]
+    updated[index][field] = value
+    setCustomFields(updated)
   }
 
   return (
@@ -767,14 +977,76 @@ function SignFileDetachedForm({ onSuccess, onError }) {
         </div>
       )}
 
-      <div className="form-group">
-        <label>Author (optional)</label>
-        <input
-          type="text"
-          value={author}
-          onChange={(e) => setAuthor(e.target.value)}
-          placeholder="Your name"
-        />
+      {/* PHẦN THÔNG TIN NGƯỜI KÝ - MỚI */}
+      <div className="metadata-section">
+        <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: '#555' }}>
+          Signer Information (Optional)
+        </h3>
+
+        <div className="form-group">
+          <label>Your Name</label>
+          <input
+            type="text"
+            value={author}
+            onChange={(e) => setAuthor(e.target.value)}
+            placeholder="John Doe"
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Your Email</label>
+          <input
+            type="email"
+            value={signerEmail}
+            onChange={(e) => setSignerEmail(e.target.value)}
+            placeholder="john@example.com"
+          />
+        </div>
+
+        {/* PHẦN CUSTOM FIELDS - MỚI */}
+        <div className="custom-fields-section">
+          <div className="custom-fields-header">
+            <label>Custom Fields</label>
+            <button
+              type="button"
+              className="btn-add-field"
+              onClick={addCustomField}
+            >
+              + Add Field
+            </button>
+          </div>
+
+          {customFields.length > 0 && (
+            <div className="custom-fields-list">
+              {customFields.map((field, index) => (
+                <div key={index} className="custom-field-row">
+                  <input
+                    type="text"
+                    value={field.key}
+                    onChange={(e) => updateCustomField(index, 'key', e.target.value)}
+                    placeholder="Field name (e.g., department)"
+                    className="custom-field-input"
+                  />
+                  <input
+                    type="text"
+                    value={field.value}
+                    onChange={(e) => updateCustomField(index, 'value', e.target.value)}
+                    placeholder="Value"
+                    className="custom-field-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeCustomField(index)}
+                    className="btn-remove-field"
+                    title="Remove field"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <button className="btn btn-primary" onClick={handleSign} disabled={loading || !file}>
@@ -790,6 +1062,8 @@ function SignFileEmbeddedForm({ onSuccess, onError }) {
   const [privateKey, setPrivateKey] = useState('')
   const [generateNew, setGenerateNew] = useState(true)
   const [author, setAuthor] = useState('')
+  const [signerEmail, setSignerEmail] = useState('')
+  const [customFields, setCustomFields] = useState([])
   const [loading, setLoading] = useState(false)
 
   const handleSign = async () => {
@@ -805,7 +1079,19 @@ function SignFileEmbeddedForm({ onSuccess, onError }) {
 
     try {
       setLoading(true)
-      const response = await apiService.signEmbedded(file, privateKey || null, generateNew, author)
+
+      const metadata = {
+        author: author,
+        signer_email: signerEmail,
+        customFields: customFields.filter(f => f.key && f.value) // chỉ gửi fields có giá trị
+      }
+
+      const response = await apiService.signEmbedded(
+        file,
+        privateKey || null,
+        generateNew,
+        metadata
+      )
 
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const a = document.createElement('a')
@@ -823,6 +1109,23 @@ function SignFileEmbeddedForm({ onSuccess, onError }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Thêm custom field
+  const addCustomField = () => {
+    setCustomFields([...customFields, { key: '', value: '' }])
+  }
+
+  // Xóa custom field
+  const removeCustomField = (index) => {
+    setCustomFields(customFields.filter((_, i) => i !== index))
+  }
+
+  // Cập nhật custom field
+  const updateCustomField = (index, field, value) => {
+    const updated = [...customFields]
+    updated[index][field] = value
+    setCustomFields(updated)
   }
 
   return (
@@ -893,14 +1196,75 @@ function SignFileEmbeddedForm({ onSuccess, onError }) {
         </div>
       )}
 
-      <div className="form-group">
-        <label>Author (optional)</label>
-        <input
-          type="text"
-          value={author}
-          onChange={(e) => setAuthor(e.target.value)}
-          placeholder="Your name"
-        />
+      <div className="metadata-section">
+        <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: '#555' }}>
+          Signer Information (Optional)
+        </h3>
+
+        <div className="form-group">
+          <label>Your Name</label>
+          <input
+            type="text"
+            value={author}
+            onChange={(e) => setAuthor(e.target.value)}
+            placeholder="John Doe"
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Your Email</label>
+          <input
+            type="email"
+            value={signerEmail}
+            onChange={(e) => setSignerEmail(e.target.value)}
+            placeholder="john@example.com"
+          />
+        </div>
+
+        {/* PHẦN CUSTOM FIELDS - MỚI */}
+        <div className="custom-fields-section">
+          <div className="custom-fields-header">
+            <label>Custom Fields</label>
+            <button
+              type="button"
+              className="btn-add-field"
+              onClick={addCustomField}
+            >
+              + Add Field
+            </button>
+          </div>
+
+          {customFields.length > 0 && (
+            <div className="custom-fields-list">
+              {customFields.map((field, index) => (
+                <div key={index} className="custom-field-row">
+                  <input
+                    type="text"
+                    value={field.key}
+                    onChange={(e) => updateCustomField(index, 'key', e.target.value)}
+                    placeholder="Field name (e.g., department)"
+                    className="custom-field-input"
+                  />
+                  <input
+                    type="text"
+                    value={field.value}
+                    onChange={(e) => updateCustomField(index, 'value', e.target.value)}
+                    placeholder="Value"
+                    className="custom-field-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeCustomField(index)}
+                    className="btn-remove-field"
+                    title="Remove field"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <button className="btn btn-primary" onClick={handleSign} disabled={loading || !file}>
@@ -917,6 +1281,7 @@ function VerifyFileForm({ onSuccess, onError }) {
   const [signatureFile, setSignatureFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
+  const [metadata, setMetadata] = useState(null)
 
   const handleVerifyDetached = async () => {
     if (!file || !signatureFile) {
@@ -935,6 +1300,9 @@ function VerifyFileForm({ onSuccess, onError }) {
       })
 
       setResult(response.data)
+      if (response.data.metadata) {
+        setMetadata(response.data.metadata)
+      }
       onSuccess(response.data.message)
     } catch (error) {
       onError(error.response?.data?.message || 'Error verifying file')
@@ -953,6 +1321,9 @@ function VerifyFileForm({ onSuccess, onError }) {
       setLoading(true)
       const data = await apiService.verifyEmbedded(file)
       setResult(data)
+      if (data.metadata) {
+        setMetadata(data.metadata)
+      }
       onSuccess(data.message)
     } catch (error) {
       onError(error.response?.data?.message || 'Error verifying embedded signature')
@@ -1067,6 +1438,23 @@ function VerifyFileForm({ onSuccess, onError }) {
             <p>
               <strong>Signed:</strong> {new Date(result.timestamp).toLocaleString()}
             </p>
+          )}
+
+          {metadata && Object.keys(metadata).length > 0 && (
+            <div className="metadata-display" style={{
+              marginTop: '1rem',
+              paddingTop: '1rem',
+              borderTop: '1px solid rgba(0,0,0,0.1)'
+            }}>
+              <h4>Signer Information:</h4>
+              {Object.entries(metadata).map(([key, value]) => (
+                <p key={key}>
+                  <strong>
+                    {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
+                  </strong> {value}
+                </p>
+              ))}
+            </div>
           )}
         </div>
       )}

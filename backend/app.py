@@ -123,6 +123,7 @@ def sign_message():
         message = data.get('message', '').encode('utf-8')
         private_key_hex = data.get('private_key')
         generate_new = data.get('generate', False)
+        metadata = data.get('metadata', {})
 
         # Get or generate private key
         if generate_new or not private_key_hex:
@@ -148,7 +149,8 @@ def sign_message():
             'signature': signature_bytes.hex(),
             'public_key': public_key_bytes.hex(),
             'message_hash': message_hash.hex(),
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'metadata': metadata
         }
 
         if should_return_private:
@@ -233,8 +235,16 @@ def sign_file_endpoint():
         metadata = {}
         if request.form.get('author'):
             metadata['author'] = request.form.get('author')
-        if request.form.get('description'):
-            metadata['description'] = request.form.get('description')
+        if request.form.get('signer_email'):
+            metadata['signer_email'] = request.form.get('signer_email')
+
+        i = 0
+        while request.form.get(f'custom_field_{i}_key'):
+            key = request.form.get(f'custom_field_{i}_key')
+            value = request.form.get(f'custom_field_{i}_value')
+            if key and value:
+                metadata[key] = value
+            i += 1
 
         # Sign file
         sig_path = filepath + '.sig'
@@ -250,7 +260,8 @@ def sign_file_endpoint():
             'filename': file.filename,
             'signature_filename': os.path.basename(sig_path),
             'file_hash': file_sig.file_hash.hex(),
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'metadata': metadata
         }
 
         if should_return_private:
@@ -354,6 +365,17 @@ def sign_embedded():
         metadata = {}
         if request.form.get('author'):
             metadata['author'] = request.form.get('author')
+        if request.form.get('signer_email'):
+            metadata['signer_email'] = request.form.get('signer_email')
+
+        # Xử lý custom fields
+        i = 0
+        while request.form.get(f'custom_field_{i}_key'):
+            key = request.form.get(f'custom_field_{i}_key')
+            value = request.form.get(f'custom_field_{i}_value')
+            if key and value:
+                metadata[key] = value
+            i += 1
 
         # Sign and embed
         output_path = filepath.replace('.pdf', '_signed.pdf')
@@ -369,19 +391,18 @@ def sign_embedded():
         if output_path and os.path.exists(output_path):
             os.remove(output_path)
 
-        # Prepare response headers
-        response_headers = {}
-        if should_return_private:
-            response_headers['X-Private-Key'] = private_key.to_bytes().hex()
-
-        # Return the in-memory PDF data
-        return send_file(
+        response = send_file(
             io.BytesIO(pdf_data),
             mimetype='application/pdf',
             as_attachment=True,
-            download_name=os.path.basename(output_path),
-            **({'headers': response_headers} if response_headers else {})
+            download_name=os.path.basename(output_path)
         )
+
+        # Thêm header sau khi tạo response
+        if should_return_private:
+            response.headers['X-Private-Key'] = private_key.to_bytes().hex()
+
+        return response
 
     except Exception as e:
         # Cleanup on error
@@ -389,6 +410,8 @@ def sign_embedded():
             os.remove(filepath)
         if output_path and os.path.exists(output_path):
             os.remove(output_path)
+
+        print(e)
 
         return jsonify({
             'status': 'error',
