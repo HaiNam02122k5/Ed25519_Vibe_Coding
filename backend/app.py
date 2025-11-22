@@ -10,6 +10,7 @@ import json
 import hashlib
 import io
 from datetime import datetime
+from dotenv import load_dotenv
 
 # Import Ed25519 modules
 from Ed25519.Ed25519_KeyGen import generate_keypair, Ed25519PrivateKey, Ed25519PublicKey
@@ -20,7 +21,16 @@ from Ed25519.Ed25519_EmbeddedSignature import embed_signature, verify_embedded_s
 from Ed25519.Ed25519_MultiSignature import MultiSignatureDocument, Signer
 
 app = Flask(__name__)
-CORS(app)
+# Thay vì CORS(app)
+CORS(app, resources={
+    r"/api/*": {
+        "origins": [
+            "http://localhost:3000",  # Dev
+            "https://yourdomain.com",  # Production - thay bằng domain thực
+            "https://your-app.vercel.app"  # Vercel domain
+        ]
+    }
+})
 
 # Configuration
 UPLOAD_FOLDER = 'uploads'
@@ -30,6 +40,7 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-123')
 
 
 # ============== Utility Functions ==============
@@ -659,4 +670,9 @@ def internal_error(error):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Development
+    if os.environ.get('FLASK_ENV') == 'development':
+        app.run(debug=True, host='0.0.0.0', port=5000)
+    # Production
+    else:
+        app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
