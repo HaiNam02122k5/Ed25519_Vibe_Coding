@@ -26,7 +26,7 @@ CORS(app, resources={
         "origins": [
             "http://localhost:3000",  # Dev
             "https://ed25519vibecoding-production.up.railway.app",  # Production - thay bằng domain thực
-            "https://ed25519-vibe-coding-phyixjn6j-hainam02122k5s-projects.vercel.app/"  # Vercel domain
+            "https://ed25519-vibe-coding-phyixjn6j-hainam02122k5s-projects.vercel.app"  # Vercel domain
         ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "X-Private-Key"],
