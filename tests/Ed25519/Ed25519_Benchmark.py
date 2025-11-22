@@ -13,14 +13,12 @@ Metrics:
 import time
 import statistics
 import psutil
-import os
-from typing import List, Dict
 
-from backend.Ed25519.Ed25519_KeyGen import generate_keypair, Ed25519PrivateKey
-from backend.Ed25519.Ed25519_Sign import sign, sign_with_scalar_mul
-from backend.Ed25519.Ed25519_Verify import verify, batch_verify, BatchVerifier
-from backend.Ed25519.Ed25519_CurveArithmetic import EdwardsPoint, BASE_POINT
-from backend.Ed25519.Ed25519_FieldArithmetic import FieldElement
+from Ed25519 import generate_keypair
+from Ed25519 import sign, sign_with_scalar_mul
+from Ed25519.Ed25519_Verify import verify, batch_verify
+from Ed25519 import BASE_POINT
+from Ed25519 import FieldElement
 
 
 class PerformanceBenchmark:

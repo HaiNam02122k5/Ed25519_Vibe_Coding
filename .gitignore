@@ -1,5 +1,5 @@
 # Environment
-.env
+../.env
 .env.local
 *.env
 
@@ -11,7 +11,7 @@ __pycache__/
 
 # Flask
 instance/
-uploads/
+backend/uploads/
 *.log
 
 # IDE

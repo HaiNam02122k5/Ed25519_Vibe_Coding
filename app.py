@@ -10,15 +10,14 @@ import json
 import hashlib
 import io
 from datetime import datetime
-from dotenv import load_dotenv
 
 # Import Ed25519 modules
-from Ed25519.Ed25519_KeyGen import generate_keypair, Ed25519PrivateKey, Ed25519PublicKey
-from Ed25519.Ed25519_Sign import sign
+from Ed25519 import generate_keypair, Ed25519PrivateKey
+from Ed25519 import sign
 from Ed25519.Ed25519_Verify import verify
-from Ed25519.Ed25519_FileSigning import sign_file, verify_file, hash_file
-from Ed25519.Ed25519_EmbeddedSignature import embed_signature, verify_embedded_signature, extract_original_file
-from Ed25519.Ed25519_MultiSignature import MultiSignatureDocument, Signer
+from Ed25519.Ed25519_FileSigning import sign_file, verify_file
+from Ed25519 import embed_signature, verify_embedded_signature
+from Ed25519 import MultiSignatureDocument, Signer
 
 app = Flask(__name__)
 # Thay vì CORS(app)
