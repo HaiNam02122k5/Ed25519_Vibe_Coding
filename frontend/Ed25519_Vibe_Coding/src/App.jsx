@@ -102,6 +102,32 @@ const readKeypairFile = (file) => {
   })
 }
 
+const downloadSignatureResult = (signatureData, message, onSuccess) => {
+  if (message.length > 1000) {
+    if (!confirm('Message is very long. Continue downloading?')) {
+      return
+    }
+  }
+
+  const json = JSON.stringify({
+    message: message,
+    signature: signatureData.signature,
+    public_key: signatureData.public_key,
+    message_hash: signatureData.message_hash,
+    timestamp: signatureData.timestamp,
+    algorithm: "Ed25519",
+    version: "1.0"
+  }, null, 2)
+
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `signature_${new Date().toISOString().split('T')[0]}.json`
+  a.click()
+  onSuccess('Signature file downloaded!')
+}
+
 // ============== Main App Component ==============
 
 function App() {
@@ -315,6 +341,7 @@ function SignMessageForm({ onSuccess, onError }) {
   const [generateNew, setGenerateNew] = useState(true)
   const [loading, setLoading] = useState(false)
   const [signature, setSignature] = useState(null)
+  const [showDownloadOption, setShowDownloadOption] = useState(false) // MỚI
 
   const handleSign = async () => {
     if (!message.trim()) {
@@ -330,13 +357,30 @@ function SignMessageForm({ onSuccess, onError }) {
 
       if (data.private_key) {
         setPrivateKey(data.private_key)
-        promptSavePrivateKey(data.private_key, onSuccess)
+        setShowDownloadOption(true) // MỚI: Hiện tùy chọn download
       }
     } catch (error) {
       onError(error.response?.data?.message || 'Error signing message')
     } finally {
       setLoading(false)
     }
+  }
+
+  // MỚI: Hàm download private key
+  const downloadPrivateKey = () => {
+    const json = JSON.stringify({
+      private_key: privateKey,
+      public_key: signature.public_key,
+      created_at: new Date().toISOString()
+    }, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `private_key_${new Date().toISOString().split('T')[0]}.json`
+    a.click()
+    onSuccess('Private key downloaded!')
+    setShowDownloadOption(false)
   }
 
   return (
@@ -410,10 +454,36 @@ function SignMessageForm({ onSuccess, onError }) {
         Sign Message
       </button>
 
+      {/* MỚI: Popup download private key */}
+      {showDownloadOption && (
+        <div className="download-option-popup">
+          <div className="popup-content">
+            <h3>⚠️ Save Your Private Key</h3>
+            <p>A new keypair was generated. Do you want to download the private key?</p>
+            <p className="warning-text">You won't be able to download it again!</p>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '1rem' }}>
+              <button className="btn btn-success" onClick={downloadPrivateKey}>
+                <Download size={18} />
+                Download Private Key
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowDownloadOption(false)}
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {signature && (
         <div className="result-box">
           <h3>Signature Result</h3>
-          <ResultDisplay data={signature} />
+          <ResultDisplay
+            data={signature}
+            onDownload={() => downloadSignatureResult(signature, message, onSuccess)}
+          />
         </div>
       )}
     </div>
@@ -426,6 +496,34 @@ function VerifyMessageForm({ onSuccess, onError }) {
   const [publicKey, setPublicKey] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
+
+  // MỚI: Hàm đọc file chữ ký
+  const readSignatureFile = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const json = JSON.parse(e.target.result)
+          // Validate required fields
+          if (!json.signature || !json.public_key) {
+            reject(new Error('Invalid signature file: missing signature or public_key'))
+            return
+          }
+
+          resolve({
+            signature: json.signature,
+            publicKey: json.public_key,
+            message: json.message || '', // MỚI: Lấy message nếu có
+            messageHash: json.message_hash || ''
+          })
+        } catch (error) {
+          reject(new Error('Failed to parse signature file'))
+        }
+      }
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsText(file)
+    })
+  }
 
   const handleVerify = async () => {
     if (!message.trim() || !signature.trim() || !publicKey.trim()) {
@@ -459,12 +557,46 @@ function VerifyMessageForm({ onSuccess, onError }) {
         />
       </div>
 
+      {/* MỚI: Nút upload signature file */}
       <div className="form-group">
-        <label>Signature (hex)</label>
+        <label>Signature</label>
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => document.getElementById('signature-file-upload').click()}
+            style={{ flex: 1 }}
+          >
+            <Upload size={18} />
+            Upload Signature File
+          </button>
+          <input
+            id="signature-file-upload"
+            type="file"
+            accept=".json"
+            style={{ display: 'none' }}
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              if (file) {
+                try {
+                  const data = await readSignatureFile(file)
+                  setSignature(data.signature)
+                  setPublicKey(data.publicKey)
+                  if (data.message) {
+                    setMessage(data.message) // MỚI: Auto-fill message
+                  }
+                  onSuccess('Signature file loaded!' + (data.message ? ' Message auto-filled.' : ''))
+                } catch (error) {
+                  onError(error.message)
+                }
+              }
+            }}
+          />
+        </div>
         <textarea
           value={signature}
           onChange={(e) => setSignature(e.target.value)}
-          placeholder="Signature hex string..."
+          placeholder="Signature hex string or upload signature file..."
           rows={3}
         />
       </div>
@@ -474,7 +606,7 @@ function VerifyMessageForm({ onSuccess, onError }) {
         <textarea
           value={publicKey}
           onChange={(e) => setPublicKey(e.target.value)}
-          placeholder="Public key hex string..."
+          placeholder="Public key hex string (auto-filled from signature file)..."
           rows={2}
         />
       </div>
@@ -956,7 +1088,7 @@ function MultiSigTab({ onSuccess, onError }) {
 
 // ============== Utility Components ==============
 
-function ResultDisplay({ data }) {
+function ResultDisplay({ data, onDownload }) {
   const copyToClipboard = (text, label) => {
     navigator.clipboard.writeText(text)
     alert(`${label} copied!`)
@@ -964,6 +1096,18 @@ function ResultDisplay({ data }) {
 
   return (
     <div className="result-items">
+      {/* MỚI: Nút download signature - CHỈ hiện khi có onDownload */}
+      {data.signature && data.public_key && onDownload && (
+        <button
+          className="btn btn-secondary"
+          onClick={onDownload}
+          style={{ marginBottom: '1rem', width: '100%' }}
+        >
+          <Download size={18} />
+          Download Signature File
+        </button>
+      )}
+
       {data.signature && (
         <div className="result-item">
           <strong>Signature:</strong>

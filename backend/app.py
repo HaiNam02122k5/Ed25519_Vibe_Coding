@@ -324,6 +324,9 @@ def sign_embedded():
     Input: pdf_file, private_key (optional)
     Output: signed PDF file
     """
+    filepath = None
+    output_path = None
+
     try:
         if 'file' not in request.files:
             return jsonify({'status': 'error', 'message': 'No PDF file provided'}), 400
@@ -356,34 +359,41 @@ def sign_embedded():
         output_path = filepath.replace('.pdf', '_signed.pdf')
         embed_signature(filepath, private_key, output_path, metadata)
 
-        # Read signed PDF
+        # Read signed PDF into memory BEFORE cleanup
         with open(output_path, 'rb') as f:
             pdf_data = f.read()
 
+        # Cleanup files NOW (before sending response)
+        if filepath and os.path.exists(filepath):
+            os.remove(filepath)
+        if output_path and os.path.exists(output_path):
+            os.remove(output_path)
+
+        # Prepare response headers
         response_headers = {}
         if should_return_private:
             response_headers['X-Private-Key'] = private_key.to_bytes().hex()
 
+        # Return the in-memory PDF data
         return send_file(
             io.BytesIO(pdf_data),
             mimetype='application/pdf',
             as_attachment=True,
             download_name=os.path.basename(output_path),
-            headers=response_headers
+            **({'headers': response_headers} if response_headers else {})
         )
 
     except Exception as e:
+        # Cleanup on error
+        if filepath and os.path.exists(filepath):
+            os.remove(filepath)
+        if output_path and os.path.exists(output_path):
+            os.remove(output_path)
+
         return jsonify({
             'status': 'error',
             'message': str(e)
         }), 400
-
-    finally:
-        if 'filepath' in locals() and os.path.exists(filepath):
-            os.remove(filepath)
-        if 'output_path' in locals() and os.path.exists(output_path):
-            os.remove(output_path)
-
 
 @app.route('/api/verify/embedded', methods=['POST'])
 def verify_embedded():
